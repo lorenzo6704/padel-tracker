@@ -860,10 +860,10 @@ function renderSettings(){
     $('#exportBox').value=JSON.stringify(DB,null,1); toast('✓ Commento salvato'); };
 
   $('#doImport').onclick=()=>{
-    const raw=$('#importBox').value.trim();
+    let raw=$('#importBox').value.trim();
     if(!raw){ toast('Incolla prima il codice'); return; }
-    let obj;
-    try{ obj=JSON.parse(raw); }catch(e){ toast('⚠️ Codice non valido'); return; }
+    let obj=parseImport(raw);
+    if(!obj){ toast('⚠️ Codice non valido'); return; }
     // backup completo?
     if(obj.program && obj.history){
       confirmModal('Ripristinare il backup?','Sostituirà i dati attuali su questo telefono con quelli del backup.',()=>{
@@ -886,6 +886,29 @@ function renderSettings(){
     try{ localStorage.removeItem(LS_KEY); }catch(e){}
     DB=null; load(); initSession(); renderAll(); toast('Dati azzerati');
   });
+}
+
+/* parse robusto di un import: prova JSON, poi normalizza virgolette tipografiche,
+   poi prova a decodificare Base64. Ritorna l'oggetto o null. */
+function parseImport(raw){
+  raw=raw.trim();
+  // 1) JSON diretto
+  try{ return JSON.parse(raw); }catch(e){}
+  // 2) normalizza virgolette/apostrofi tipografici e riprova
+  const norm=raw
+    .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g,'"')
+    .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g,"'")
+    .replace(/\u00A0/g,' ');
+  try{ return JSON.parse(norm); }catch(e){}
+  // 3) prova Base64 (toglie spazi/a-capo che il copia-incolla può inserire)
+  try{
+    const clean=raw.replace(/\s+/g,'');
+    if(/^[A-Za-z0-9+/=]+$/.test(clean) && clean.length>40){
+      const json=decodeURIComponent(escape(atob(clean)));
+      return JSON.parse(json);
+    }
+  }catch(e){}
+  return null;
 }
 
 /* ---------- modale conferma ---------- */
